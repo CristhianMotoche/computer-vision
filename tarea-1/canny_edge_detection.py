@@ -40,11 +40,17 @@ def process_video(video_path):
         # Evitar que threshold1 sea mayor o igual a threshold2
         if t1 >= t2:
             edges = np.zeros_like(gray)
-            cv2.imshow('Canny Video', edges)
+            contour_img = cv2.cvtColor(gray, cv2.COLOR_GRAY2BGR)
+            cv2.imshow('Canny Video', contour_img)
             cv2.displayOverlay('Canny Video', '¡Umbral 1 debe ser menor que Umbral 2!', 500)
         else:
             edges = cv2.Canny(gray, t1, t2)
-            cv2.imshow('Canny Video', edges)
+            # Encontrar contornos en la imagen de bordes
+            contours, _ = cv2.findContours(edges, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+            # Dibujar los contornos sobre una imagen RGB para visualización
+            contour_img = cv2.cvtColor(gray, cv2.COLOR_GRAY2BGR)
+            cv2.drawContours(contour_img, contours, -1, (255, 0, 0), 2)
+            cv2.imshow('Canny Video', contour_img)
         key = cv2.waitKey(60) & 0xFF  # Espera 60 ms para ir más lento
         if key == 27:  # ESC para salir
             break
@@ -80,8 +86,13 @@ def process_image(url):
     axs[1].axis('off')
 
     edges = cv2.Canny(gray, threshold1_init, threshold2_init)
-    im_edges = axs[2].imshow(edges, cmap='gray')
-    axs[2].set_title(f'3. Bordes Canny\n(umbrales: {threshold1_init}, {threshold2_init})')
+    # Encontrar contornos en la imagen de bordes
+    contours, _ = cv2.findContours(edges, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+    # Dibujar los contornos sobre una imagen RGB para visualización
+    contour_img = cv2.cvtColor(gray, cv2.COLOR_GRAY2RGB)
+    cv2.drawContours(contour_img, contours, -1, (255, 0, 0), 2)
+    im_edges = axs[2].imshow(contour_img)
+    axs[2].set_title(f'3. Bordes y contornos\n(umbrales: {threshold1_init}, {threshold2_init})')
     axs[2].axis('off')
 
     axcolor = 'lightgoldenrodyellow'
@@ -106,8 +117,13 @@ def update(val, slider_thresh1, slider_thresh2, gray, axs, im_edges, fig):
         im_edges.set_data(np.zeros_like(gray))
     else:
         edges_new = cv2.Canny(gray, t1, t2)
-        im_edges.set_data(edges_new)
-        axs[2].set_title(f'3. Bordes Canny\n(umbrales: {t1}, {t2})')
+        # Encontrar contornos en la imagen de bordes
+        contours, _ = cv2.findContours(edges_new, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+        # Dibujar los contornos sobre una imagen RGB para visualización
+        contour_img = cv2.cvtColor(gray, cv2.COLOR_GRAY2RGB)
+        cv2.drawContours(contour_img, contours, -1, (255, 0, 0), 2)
+        im_edges.set_data(contour_img)
+        axs[2].set_title(f'3. Bordes y contornos\n(umbrales: {t1}, {t2})')
     fig.canvas.draw_idle()
 
 def main():
