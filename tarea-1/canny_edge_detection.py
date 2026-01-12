@@ -74,35 +74,56 @@ def process_image(url):
     threshold1_init = 100
     threshold2_init = 200
 
-    fig, axs = plt.subplots(1, 3, figsize=(15, 5))
+    fig, axs = plt.subplots(2, 2, figsize=(12, 10))
     plt.subplots_adjust(bottom=0.25)
 
-    axs[0].set_title('1. Original')
-    axs[0].imshow(cv2.cvtColor(image, cv2.COLOR_BGR2RGB))
-    axs[0].axis('off')
+    # 1. Imagen original
+    axs[0, 0].set_title('1. Original')
+    axs[0, 0].imshow(cv2.cvtColor(image, cv2.COLOR_BGR2RGB))
+    axs[0, 0].axis('off')
 
-    axs[1].set_title('2. Escala de grises')
-    axs[1].imshow(gray, cmap='gray')
-    axs[1].axis('off')
+    # 2. Imagen en escala de grises
+    axs[0, 1].set_title('2. Escala de grises')
+    axs[0, 1].imshow(gray, cmap='gray')
+    axs[0, 1].axis('off')
 
+    # 3. Bordes y contornos (sin ruido)
     edges = cv2.Canny(gray, threshold1_init, threshold2_init)
-    # Encontrar contornos en la imagen de bordes
     contours, _ = cv2.findContours(edges, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
-    # Dibujar los contornos sobre una imagen RGB para visualización
     contour_img = cv2.cvtColor(gray, cv2.COLOR_GRAY2RGB)
     cv2.drawContours(contour_img, contours, -1, (255, 0, 0), 2)
-    im_edges = axs[2].imshow(contour_img)
-    axs[2].set_title(f'3. Bordes y contornos\n(umbrales: {threshold1_init}, {threshold2_init})')
-    axs[2].axis('off')
+    im_edges = axs[1, 0].imshow(contour_img)
+    axs[1, 0].set_title(f'3. Bordes y contornos\n(umbrales: {threshold1_init}, {threshold2_init})')
+    axs[1, 0].axis('off')
+
+    # 4. Bordes y contornos con ruido
+    seed_init = 42
+    def update_noise(seed):
+        np.random.seed(int(seed))
+        ruido = np.random.normal(0, 20, gray.shape).astype(np.uint8)
+        gray_ruido = cv2.add(gray, ruido)
+        canny_seed = cv2.Canny(gray_ruido, 150, 300)
+        contornos_ruido, _ = cv2.findContours(canny_seed, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+        contour_img_ruido = cv2.cvtColor(gray_ruido, cv2.COLOR_GRAY2RGB)
+        cv2.drawContours(contour_img_ruido, contornos_ruido, -1, (255, 0, 0), 2)
+        axs[1, 1].imshow(contour_img_ruido)
+        axs[1, 1].set_title(f'4. Canny + ruido (semilla={int(seed)})')
+        axs[1, 1].axis('off')
+        fig.canvas.draw_idle()
+    update_noise(seed_init)
 
     axcolor = 'lightgoldenrodyellow'
-    axthresh1 = plt.axes([0.25, 0.1, 0.5, 0.03], facecolor=axcolor)
-    axthresh2 = plt.axes([0.25, 0.05, 0.5, 0.03], facecolor=axcolor)
+    axthresh1 = plt.axes([0.25, 0.13, 0.5, 0.03], facecolor=axcolor)
+    axthresh2 = plt.axes([0.25, 0.09, 0.5, 0.03], facecolor=axcolor)
+    axseed = plt.axes([0.25, 0.05, 0.5, 0.03], facecolor=axcolor)
     slider_thresh1 = Slider(axthresh1, 'Umbral 1 (min)', 0, 255, valinit=threshold1_init, valstep=1)
     slider_thresh2 = Slider(axthresh2, 'Umbral 2 (max)', 0, 255, valinit=threshold2_init, valstep=1)
+    slider_seed = Slider(axseed, 'Semilla ruido', 0, 100, valinit=seed_init, valstep=1)
 
+    # Actualización solo para la imagen sin ruido (figura 3)
     slider_thresh1.on_changed(lambda val: update(val, slider_thresh1, slider_thresh2, gray, axs, im_edges, fig))
     slider_thresh2.on_changed(lambda val: update(val, slider_thresh1, slider_thresh2, gray, axs, im_edges, fig))
+    slider_seed.on_changed(update_noise)
 
     plt.show()
 
@@ -113,7 +134,7 @@ def update(val, slider_thresh1, slider_thresh2, gray, axs, im_edges, fig):
     t2 = int(slider_thresh2.val)
     # Evitar que threshold1 sea mayor o igual a threshold2
     if t1 >= t2:
-        axs[2].set_title('¡Umbral 1 debe ser menor que Umbral 2!')
+        axs[1, 0].set_title('¡Umbral 1 debe ser menor que Umbral 2!')
         im_edges.set_data(np.zeros_like(gray))
     else:
         edges_new = cv2.Canny(gray, t1, t2)
@@ -122,8 +143,8 @@ def update(val, slider_thresh1, slider_thresh2, gray, axs, im_edges, fig):
         # Dibujar los contornos sobre una imagen RGB para visualización
         contour_img = cv2.cvtColor(gray, cv2.COLOR_GRAY2RGB)
         cv2.drawContours(contour_img, contours, -1, (255, 0, 0), 2)
-        im_edges.set_data(contour_img)
-        axs[2].set_title(f'3. Bordes y contornos\n(umbrales: {t1}, {t2})')
+    im_edges.set_data(contour_img)
+    axs[1, 0].set_title(f'3. Bordes y contornos\n(umbrales: {t1}, {t2})')
     fig.canvas.draw_idle()
 
 def main():
