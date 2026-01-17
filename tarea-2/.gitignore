@@ -1,0 +1,75 @@
+# YOLO Model Files - Downloaded automatically
+*.weights
+*.pt
+*.cfg
+*.names
+yolov*.pt
+yolov*.weights
+yolov*.cfg
+
+# Specific downloaded files
+coco.names
+yolov4.cfg
+yolov4.weights
+yolov5s.pt
+yolov6s.pt
+yolov7.pt
+yolov8n.pt
+yolov9s.pt
+
+# Python cache and compiled files
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+*.egg-info/
+dist/
+build/
+
+# Virtual environments
+venv/
+env/
+ENV/
+.venv/
+.env
+
+# IDE and editor files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+
+# Jupyter Notebook checkpoints
+.ipynb_checkpoints/
+
+# UV package manager
+.uv/
+
+# Temporary files
+*.tmp
+*.temp
+*.log
+
+# Video and image files (if any are generated)
+*.mp4
+*.avi
+*.mov
+*.jpg
+*.jpeg
+*.png
+*.bmp
+*.tiff
+
+# Model training outputs (if any)
+runs/
+wandb/
+*.onnx
+*.trt
+*.engine
+
+# System files
+Thumbs.db
+.directory
