@@ -4,26 +4,20 @@
 #     "matplotlib",
 #     "numpy",
 #     "opencv-python",
-#     "ultralytics",
 #     "easyocr",
 #     "pytesseract",
 # ]
 # ///
 import cv2
 import numpy as np
-from ultralytics import YOLO
 import easyocr
 
 
 class TextCharacterDetector:
-    """Detector especializado para detectar y reconocer texto/caracteres en video usando YOLOv8 + OCR"""
+    """Detector especializado para detectar y reconocer texto/caracteres en video usando OCR"""
 
-    def __init__(
-        self, confidence=0.5, model_path="yolov8n.pt", ocr_languages=["en", "es"]
-    ):
+    def __init__(self, confidence=0.5, ocr_languages=["en", "es"]):
         self.confidence = confidence
-        self.model = None
-        self.model_path = model_path
         self.ocr_reader = None
         self.ocr_languages = ocr_languages
 
@@ -36,12 +30,7 @@ class TextCharacterDetector:
         }
 
     def load_models(self):
-        """Cargar modelo YOLOv8 y inicializar OCR"""
-        print("Cargando YOLOv8...")
-        self.model = YOLO(self.model_path)
-        self.model.to("cpu")
-        print("✓ Modelo YOLOv8 cargado")
-
+        """Inicializar OCR"""
         print("Inicializando EasyOCR...")
         self.ocr_reader = easyocr.Reader(self.ocr_languages, gpu=False)
         print("✓ EasyOCR inicializado")
@@ -139,8 +128,8 @@ class TextCharacterDetector:
 
     def detect_characters(self, frame):
         """Detectar y reconocer caracteres/texto en el frame"""
-        if self.model is None or self.ocr_reader is None:
-            raise ValueError("Modelos no cargados. Llama a load_models() primero.")
+        if self.ocr_reader is None:
+            raise ValueError("OCR no inicializado. Llama a load_models() primero.")
 
         # Método 1: Detectar regiones de texto usando procesamiento de imagen
         text_regions = self.detect_text_regions(frame)
@@ -154,17 +143,11 @@ class TextCharacterDetector:
         """Dibujar las detecciones de texto en el frame"""
         annotated_frame = frame.copy()
 
-        # Estadísticas por tipo
-        type_counts = {"letters": 0, "numbers": 0, "mixed": 0, "symbols": 0}
-
         for i, detection in enumerate(detected_texts):
             x1, y1, x2, y2 = detection["bbox"]
             text = detection["text"]
             confidence = detection["confidence"]
             text_type = detection["type"]
-
-            # Contar tipos
-            type_counts[text_type] += 1
 
             # Color según el tipo de texto
             color = self.colors.get(text_type, (255, 255, 255))
@@ -208,75 +191,15 @@ class TextCharacterDetector:
             2,
         )
 
-        # Estadísticas por tipo
-        y_offset = 60
-        for text_type, count in type_counts.items():
-            if count > 0:
-                color = self.colors[text_type]
-                cv2.putText(
-                    annotated_frame,
-                    f"{text_type.title()}: {count}",
-                    (10, y_offset),
-                    cv2.FONT_HERSHEY_SIMPLEX,
-                    0.5,
-                    color,
-                    1,
-                )
-                y_offset += 20
-
-        # Información del modelo
-        model_info = "YOLOv8 + EasyOCR - Detección de Caracteres"
-        cv2.putText(
-            annotated_frame,
-            model_info,
-            (10, annotated_frame.shape[0] - 20),
-            cv2.FONT_HERSHEY_SIMPLEX,
-            0.4,
-            (255, 255, 255),
-            1,
-        )
-
         return annotated_frame
 
-    def get_text_statistics(self, detected_texts):
-        """Obtener estadísticas del texto detectado"""
-        if not detected_texts:
-            return {}
 
-        # Contar caracteres por tipo
-        char_counts = {"letters": 0, "numbers": 0, "symbols": 0}
-        text_by_type = {"letters": [], "numbers": [], "mixed": [], "symbols": []}
-
-        for detection in detected_texts:
-            text = detection["text"]
-            text_type = detection["type"]
-            text_by_type[text_type].append(text)
-
-            # Contar caracteres individuales
-            for char in text:
-                if char.isalpha():
-                    char_counts["letters"] += 1
-                elif char.isdigit():
-                    char_counts["numbers"] += 1
-                elif not char.isspace():
-                    char_counts["symbols"] += 1
-
-        stats = {
-            "total_detections": len(detected_texts),
-            "character_counts": char_counts,
-            "text_by_type": text_by_type,
-            "avg_confidence": np.mean([d["confidence"] for d in detected_texts]),
-        }
-
-        return stats
 
 
 def main():
     """Función principal para ejecutar la detección de caracteres en tiempo real"""
     print("=== DETECCIÓN DE CARACTERES/TEXTO EN TIEMPO REAL ===")
     print("Presiona 'q' para salir")
-    print("Presiona 's' para mostrar estadísticas detalladas")
-    print("Presiona 'r' para resetear estadísticas")
     print("Presiona 'p' para pausar/reanudar\n")
 
     # Inicializar detector
@@ -297,13 +220,11 @@ def main():
     print("✓ Sistema listo para detectar texto")
 
     # Crear ventana
-    window_name = "Detección de Caracteres/Texto - YOLOv8 + OCR"
+    window_name = "Detección de Caracteres/Texto - OCR"
     cv2.namedWindow(window_name, cv2.WINDOW_AUTOSIZE)
 
     frame_count = 0
-    show_detailed_stats = False
     paused = False
-    all_detected_texts = []
 
     while True:
         if not paused:
@@ -316,32 +237,9 @@ def main():
 
             # Detectar texto/caracteres
             detected_texts = detector.detect_characters(frame)
-            all_detected_texts.extend(detected_texts)
 
             # Dibujar detecciones
             annotated_frame = detector.draw_detections(frame, detected_texts)
-
-            # Mostrar estadísticas detalladas si está activado
-            if show_detailed_stats and detected_texts:
-                stats = detector.get_text_statistics(detected_texts)
-
-                # Mostrar textos únicos detectados
-                y_pos = 100
-                for text_type, texts in stats["text_by_type"].items():
-                    if texts:
-                        unique_texts = list(set(texts))[:3]  # Máximo 3 únicos
-                        color = detector.colors[text_type]
-                        texts_str = ", ".join(unique_texts)
-                        cv2.putText(
-                            annotated_frame,
-                            f"{text_type}: {texts_str}",
-                            (10, y_pos),
-                            cv2.FONT_HERSHEY_SIMPLEX,
-                            0.4,
-                            color,
-                            1,
-                        )
-                        y_pos += 15
         else:
             # Si está pausado, mantener el último frame
             pass
@@ -353,27 +251,9 @@ def main():
         key = cv2.waitKey(1) & 0xFF
         if key == ord("q"):
             break
-        elif key == ord("s"):
-            show_detailed_stats = not show_detailed_stats
-            print(
-                f"Estadísticas detalladas: {'activadas' if show_detailed_stats else 'desactivadas'}"
-            )
-        elif key == ord("r"):
-            all_detected_texts = []
-            print("Estadísticas reseteadas")
         elif key == ord("p"):
             paused = not paused
             print(f"{'Pausado' if paused else 'Reanudado'}")
-
-    # Mostrar estadísticas finales
-    if all_detected_texts:
-        final_stats = detector.get_text_statistics(all_detected_texts)
-        print("\n=== ESTADÍSTICAS FINALES ===")
-        print(f"Total detecciones: {final_stats['total_detections']}")
-        print(f"Caracteres - Letras: {final_stats['character_counts']['letters']}")
-        print(f"Caracteres - Números: {final_stats['character_counts']['numbers']}")
-        print(f"Caracteres - Símbolos: {final_stats['character_counts']['symbols']}")
-        print(f"Confianza promedio: {final_stats['avg_confidence']:.2f}")
 
     # Limpieza
     cap.release()
