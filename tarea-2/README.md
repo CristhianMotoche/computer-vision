@@ -48,7 +48,8 @@ uv run text_character_detection.py
 # Entrenar modelo personalizado
 uv run train_custom_yolo.py
 
-# O con Python directamente
+# Si el modelo fue entrenado en CPU, usar CPU para inferencia:
+CUDA_VISIBLE_DEVICES='' uv run train_custom_yolo.py
 python yolo_realtime.py
 python yolov12_realtime.py
 python text_character_detection.py
@@ -211,6 +212,16 @@ El archivo `coco.names` mapea los IDs de detección a nombres comprensibles:
 | 70-79 | oven, toaster, sink, refrigerator, book, clock, vase, scissors, teddy bear, hair drier, toothbrush | Hogar |
 
 ## 🚨 Solución de Problemas
+
+### Modelos Entrenados en CPU
+```bash
+# Si el modelo personalizado fue entrenado en CPU pero el sistema tiene GPU,
+# forzar el uso de CPU para evitar incompatibilidades:
+CUDA_VISIBLE_DEVICES='' uv run train_custom_yolo.py
+
+# Alternativa: configurar CPU directamente en el script
+export CUDA_VISIBLE_DEVICES=''
+```
 
 ### Error: "No se pudo acceder a la cámara"
 ```bash
