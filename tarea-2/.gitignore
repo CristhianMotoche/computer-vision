@@ -73,3 +73,6 @@ wandb/
 # System files
 Thumbs.db
 .directory
+
+data/
+custom_training/

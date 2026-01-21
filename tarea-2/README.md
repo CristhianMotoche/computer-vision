@@ -1,14 +1,17 @@
 # 🔍 YOLO Real-time Object Detection
 
-Sistema de detección de objetos en tiempo real usando diferentes versiones de YOLO (v4-v8) con descarga automática de configuraciones y pesos.
+Sistema de detección de objetos en tiempo real usando diferentes versiones de YOLO (v4-v12) con descarga automática de configuraciones, entrenamiento personalizado y detección de texto.
 
 ## 🚀 Características
 
-- **Múltiples versiones YOLO**: Soporte para YOLOv4, v5, v6, v7 y v8
+- **Múltiples versiones YOLO**: Soporte para YOLOv4, v5, v6, v7, v8, v9 y v12
 - **Descarga automática**: Archivos de configuración, pesos y clases se descargan automáticamente
 - **Detección en tiempo real**: Procesamiento de cada fotograma de la cámara web
+- **Entrenamiento personalizado**: Scripts para entrenar modelos con datasets propios
+- **Detección de texto**: Reconocimiento de caracteres y texto en imágenes
 - **Configuración flexible**: Resolución, umbral de confianza y versión personalizables
 - **Interfaz interactiva**: Controles por teclado y información en pantalla
+- **Datasets incluidos**: Dataset de detección de gorras y configuraciones COCO
 
 ## 📁 Archivos del Proyecto
 
@@ -36,8 +39,20 @@ uv add opencv-python ultralytics requests numpy matplotlib argparse
 # YOLOv8 por defecto
 uv run yolo_realtime.py
 
+# YOLO v12 en tiempo real
+uv run yolov12_realtime.py
+
+# Detección de texto y caracteres
+uv run text_character_detection.py
+
+# Entrenar modelo personalizado
+uv run train_custom_yolo.py
+
 # O con Python directamente
 python yolo_realtime.py
+python yolov12_realtime.py
+python text_character_detection.py
+python train_custom_yolo.py
 ```
 
 ## 🎮 Uso del Script
@@ -47,9 +62,10 @@ python yolo_realtime.py
 ```bash
 # Sintaxis básica
 uv run yolo_realtime.py [opciones]
+uv run yolov12_realtime.py [opciones]
 
 # Opciones disponibles:
---version, -v    Versión YOLO (4, 5, 6, 7, 8) [Por defecto: 8]
+--version, -v    Versión YOLO (4, 5, 6, 7, 8, 9, 12) [Por defecto: 8]
 --confidence, -c Umbral de confianza (0.0-1.0) [Por defecto: 0.5]
 --resolution, -r Resolución cámara (ej: 640x480) [Por defecto: 640x480]
 --help, -h       Mostrar ayuda
@@ -61,6 +77,9 @@ uv run yolo_realtime.py [opciones]
 # YOLOv8 con configuración por defecto
 uv run yolo_realtime.py
 
+# YOLO v12 más reciente
+uv run yolov12_realtime.py
+
 # YOLOv4 usando archivos .cfg y .weights
 uv run yolo_realtime.py --version 4
 
@@ -69,6 +88,12 @@ uv run yolo_realtime.py --version 7 --confidence 0.8 --resolution 1280x720
 
 # YOLOv5 para detección sensible (baja confianza)
 uv run yolo_realtime.py -v 5 -c 0.3 -r 800x600
+
+# Detección de texto en imágenes
+uv run text_character_detection.py
+
+# Entrenar modelo personalizado
+uv run train_custom_yolo.py
 ```
 
 ## 🔧 Diferencias entre Versiones
@@ -79,10 +104,10 @@ uv run yolo_realtime.py -v 5 -c 0.3 -r 800x600
 - **Ventajas**: Configuración nativa Darknet, menor uso de memoria
 - **Uso**: Ideal para sistemas con recursos limitados
 
-### YOLOv5-v8 (Ultralytics)
+### YOLOv5-v12 (Ultralytics)
 - **Archivos**: Modelos `.pt` (se descargan automáticamente)
 - **Backend**: PyTorch con Ultralytics
-- **Ventajas**: Mayor precisión, mejor API, soporte GPU
+- **Ventajas**: Mayor precisión, mejor API, soporte GPU, entrenamiento personalizado
 - **Uso**: Recomendado para mejor rendimiento y características modernas
 
 ## 📊 Funcionalidades Implementadas
@@ -91,7 +116,12 @@ uv run yolo_realtime.py -v 5 -c 0.3 -r 800x600
 - **coco.names**: 80 clases de objetos del dataset COCO
 - **yolov4.cfg**: Configuración de arquitectura de red YOLOv4
 - **yolov4.weights**: Pesos entrenados YOLOv4 (~250MB)
-- **Modelos .pt**: YOLOv5-v8 se descargan vía Ultralytics
+- **Modelos .pt**: YOLOv5-v12 se descargan vía Ultralytics
+
+### ✅ Entrenamiento Personalizado
+- **train_custom_yolo.py**: Script para entrenar modelos personalizados
+- **text_character_detection.py**: Detección especializada de texto y caracteres
+- **Configuración flexible**: Soporte para datasets propios y entrenamiento personalizado
 
 ### ✅ Procesamiento de Fotogramas
 - Detección en cada frame de video en tiempo real
