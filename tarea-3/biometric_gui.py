@@ -412,90 +412,143 @@ class BiometricGUI:
 
     def authenticate(self):
         """Realizar autenticación en tiempo real"""
+        frame_count = 0
+        last_auth_result = None
+        last_auth_time = 0
+        
         while self.is_authenticating and self.cap.isOpened():
             ret, frame = self.cap.read()
             if not ret:
                 break
 
-            # Detectar rostros
-            rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-            faces = self.detector.detect_faces(rgb)
+            frame_count += 1
+            current_time = time.time()
+            
+            # Use fast Haar cascade for initial detection every frame
+            gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+            faces_haar = self.face_cascade.detectMultiScale(
+                gray, scaleFactor=1.3, minNeighbors=5, minSize=(60, 60)
+            )
 
-            for face_data in faces:
-                x, y, w, h = face_data["box"]
+            # Only run expensive authentication every 10 frames (about 3 times per second)
+            # or if 2 seconds have passed since last authentication
+            run_auth = (frame_count % 10 == 0) or (current_time - last_auth_time > 2.0)
+            
+            if len(faces_haar) > 0 and run_auth:
+                # Use MTCNN only when we need to authenticate
+                rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+                faces_mtcnn = self.detector.detect_faces(rgb)
+                
+                if len(faces_mtcnn) > 0:
+                    face_data = faces_mtcnn[0]  # Use first detected face
+                    x, y, w, h = face_data["box"]
 
-                # Preparar rostro para LBPH
-                face_gray = cv2.cvtColor(
-                    frame[y : y + h, x : x + w], cv2.COLOR_BGR2GRAY
-                )
-                face_gray = cv2.resize(face_gray, (224, 224))
-                face_gray = cv2.equalizeHist(face_gray)
+                    # Preparar rostro para LBPH
+                    face_gray = cv2.cvtColor(
+                        frame[y : y + h, x : x + w], cv2.COLOR_BGR2GRAY
+                    )
+                    face_gray = cv2.resize(face_gray, (224, 224))
+                    face_gray = cv2.equalizeHist(face_gray)
 
-                # Preparar rostro para FaceNet
-                face_rgb = rgb[y : y + h, x : x + w]
-                face_rgb = cv2.resize(face_rgb, (160, 160))
-                face_emb = self.embedder.embeddings(np.expand_dims(face_rgb, axis=0))[0]
+                    # Preparar rostro para FaceNet
+                    face_rgb = rgb[y : y + h, x : x + w]
+                    face_rgb = cv2.resize(face_rgb, (160, 160))
+                    face_emb = self.embedder.embeddings(np.expand_dims(face_rgb, axis=0))[0]
 
-                # Probar con todos los modelos
-                best_match = None
-                best_score = 0
+                    # Probar con todos los modelos
+                    best_match = None
+                    best_score = 0
 
-                for model_data in self.auth_models:
-                    # Test LBPH
-                    label, confidence = model_data["lbph"].predict(face_gray)
-                    lbph_score = max(0, min(100, 100 - confidence))
+                    for model_data in self.auth_models:
+                        # Test LBPH
+                        label, confidence = model_data["lbph"].predict(face_gray)
+                        lbph_score = max(0, min(100, 100 - confidence))
 
-                    # Test FaceNet
-                    similarities = [
-                        self.cosine_similarity(face_emb, emb)
-                        for emb in model_data["embeddings"]
-                    ]
-                    facenet_score = max(similarities) * 100
+                        # Test FaceNet
+                        similarities = [
+                            self.cosine_similarity(face_emb, emb)
+                            for emb in model_data["embeddings"]
+                        ]
+                        facenet_score = max(similarities) * 100
 
-                    # Usar el mejor score
-                    combined_score = max(lbph_score, facenet_score)
+                        # Usar el mejor score
+                        combined_score = max(lbph_score, facenet_score)
 
-                    if (
-                        combined_score > best_score and combined_score > 60
-                    ):  # Umbral mínimo
-                        best_score = combined_score
-                        best_match = model_data["user"]
+                        if (
+                            combined_score > best_score and combined_score > 60
+                        ):  # Umbral mínimo
+                            best_score = combined_score
+                            best_match = model_data["user"]
 
-                # Dibujar resultado
-                if best_match:
-                    color = (0, 255, 0)
-                    text = f"ACCESO: {best_match} ({best_score:.1f}%)"
+                    # Store authentication result
+                    if best_match:
+                        last_auth_result = {
+                            "match": best_match, 
+                            "score": best_score,
+                            "color": (0, 255, 0),
+                            "text": f"ACCESO: {best_match} ({best_score:.1f}%)"
+                        }
+                    else:
+                        last_auth_result = {
+                            "match": None,
+                            "score": 0,
+                            "color": (0, 0, 255),
+                            "text": "ACCESO DENEGADO"
+                        }
+                    
+                    last_auth_time = current_time
+
+            # Draw results on all detected faces using Haar cascade (fast)
+            for (x, y, w, h) in faces_haar:
+                if last_auth_result:
+                    color = last_auth_result["color"]
+                    text = last_auth_result["text"]
                 else:
-                    color = (0, 0, 255)
-                    text = "ACCESO DENEGADO"
+                    color = (255, 255, 0)  # Yellow for processing
+                    text = "PROCESANDO..."
 
                 cv2.rectangle(frame, (x, y), (x + w, y + h), color, 2)
                 cv2.putText(
                     frame, text, (x, y - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.7, color, 2
                 )
 
-                # Actualizar instrucción
-                self.root.after(0, lambda t=text: self.instruction_label.config(text=t))
+            # Update instruction label only when status changes
+            current_status = ""
+            if last_auth_result:
+                current_status = last_auth_result["text"]
+            elif len(faces_haar) > 0:
+                current_status = "PROCESANDO..."
+            else:
+                current_status = "Esperando rostro..."
+                
+            if not hasattr(self, '_last_status') or self._last_status != current_status:
+                self._last_status = current_status
+                self.root.after(0, lambda s=current_status: self.instruction_label.config(text=s))
 
-            self.display_frame(frame)
+            # Only update display every 3 frames for smoother performance
+            if frame_count % 3 == 0:
+                self.display_frame(frame)
 
     def cosine_similarity(self, a, b):
         """Calcular similitud coseno"""
         return np.dot(a, b) / (np.linalg.norm(a) * np.linalg.norm(b))
 
     def display_frame(self, frame):
-        """Mostrar frame en la GUI"""
-        # Redimensionar frame
+        """Mostrar frame en la GUI - optimized version"""
+        # Redimensionar frame solo una vez
         frame = cv2.resize(frame, (640, 480))
         frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
 
-        # Convertir a formato PIL
+        # Convertir a formato PIL y ImageTk en una sola operación
         img = Image.fromarray(frame)
         imgtk = ImageTk.PhotoImage(image=img)
 
-        # Actualizar label
-        self.root.after(0, lambda: self.video_label.configure(image=imgtk))
-        self.root.after(0, lambda: setattr(self.video_label, "image", imgtk))
+        # Actualizar label en una sola llamada
+        def update_image():
+            self.video_label.configure(image=imgtk)
+            self.video_label.image = imgtk  # Keep a reference
+            
+        self.root.after(0, update_image)
 
     def stop_capture(self):
         """Detener captura"""
