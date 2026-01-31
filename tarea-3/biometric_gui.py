@@ -8,6 +8,8 @@ from PIL import Image, ImageTk
 import threading
 from mtcnn import MTCNN
 from keras_facenet import FaceNet
+import subprocess
+import platform
 
 
 class BiometricGUI:
@@ -31,6 +33,10 @@ class BiometricGUI:
         self.pose_index = 0
         self.img_count = 0
         self.poses = ["frontal", "izquierda", "derecha", "arriba", "abajo"]
+        self.is_authenticated = False
+        self.authenticated_user = None
+        self.auth_timeout = 30  # seconds
+        self.last_auth_time = 0
 
         # Modelos
         self.face_cascade = cv2.CascadeClassifier(
@@ -54,7 +60,7 @@ class BiometricGUI:
 
         # Frame principal para botones
         button_frame = tk.Frame(self.root, bg="#f0f0f0")
-        button_frame.pack(pady=50)
+        button_frame.pack(pady=20)  # Reduced from 50
 
         # Botón para agregar nuevo usuario
         add_user_btn = tk.Button(
@@ -67,10 +73,10 @@ class BiometricGUI:
             height=2,
             command=self.add_new_user,
         )
-        add_user_btn.pack(pady=20)
+        add_user_btn.pack(pady=10)  # Reduced from 20
 
-        # Botón para autenticación biométrica
-        auth_btn = tk.Button(
+        # Botón para autenticación biométrica (toggle functionality)
+        self.auth_btn = tk.Button(
             button_frame,
             text="2. Autenticación Biométrica",
             font=("Arial", 16, "bold"),
@@ -78,13 +84,51 @@ class BiometricGUI:
             fg="white",
             width=25,
             height=2,
-            command=self.biometric_auth,
+            command=self.toggle_biometric_auth,
         )
-        auth_btn.pack(pady=20)
+        self.auth_btn.pack(pady=10)
+
+        # Botón para archivo seguro (deshabilitado por defecto)
+        self.secure_file_btn = tk.Button(
+            button_frame,
+            text="3. Abrir Archivo Seguro",
+            font=("Arial", 16, "bold"),
+            bg="#95a5a6",  # Gray color when disabled
+            fg="white",
+            width=25,
+            height=2,
+            command=self.open_secure_file,
+            state="disabled"
+        )
+        self.secure_file_btn.pack(pady=10)  # Reduced from 20
+
+        # Botón de logout (deshabilitado por defecto)
+        self.logout_btn = tk.Button(
+            button_frame,
+            text="4. Cerrar Sesión",
+            font=("Arial", 14, "bold"),
+            bg="#95a5a6",  # Gray color when disabled
+            fg="white",
+            width=20,
+            height=1,
+            command=self.logout,
+            state="disabled"
+        )
+        self.logout_btn.pack(pady=5)  # Reduced from 10
+
+        # Label de estado de autenticación
+        self.auth_status_label = tk.Label(
+            self.root,
+            text="Estado: No autenticado",
+            font=("Arial", 12, "bold"),
+            bg="#f0f0f0",
+            fg="#e74c3c"
+        )
+        self.auth_status_label.pack(pady=5)  # Reduced from 10
 
         # Frame para video
         self.video_frame = tk.Frame(self.root, bg="#f0f0f0")
-        self.video_frame.pack(pady=20)
+        self.video_frame.pack(pady=10)  # Reduced from 20
 
         # Label para video
         self.video_label = tk.Label(self.video_frame, bg="#f0f0f0")
@@ -92,13 +136,13 @@ class BiometricGUI:
 
         # Frame para controles
         self.control_frame = tk.Frame(self.root, bg="#f0f0f0")
-        self.control_frame.pack(pady=10)
+        self.control_frame.pack(pady=5)  # Reduced from 10
 
         # Label para instrucciones
         self.instruction_label = tk.Label(
             self.root, text="", font=("Arial", 14), bg="#f0f0f0", fg="#2c3e50"
         )
-        self.instruction_label.pack(pady=10)
+        self.instruction_label.pack(pady=5)  # Reduced from 10
 
     def add_new_user(self):
         """Función para agregar nuevo usuario"""
@@ -131,17 +175,7 @@ class BiometricGUI:
         self.cap = cv2.VideoCapture(0)
 
         # Mostrar el frame de video si estaba oculto
-        self.video_frame.pack(pady=20)
-
-        # Crear botón de cancelar
-        cancel_btn = tk.Button(
-            self.control_frame,
-            text="Cancelar Captura",
-            bg="#e74c3c",
-            fg="white",
-            command=self.stop_capture,
-        )
-        cancel_btn.pack()
+        self.video_frame.pack(pady=10)
 
         # Iniciar thread de captura
         self.capture_thread = threading.Thread(target=self.capture_faces)
@@ -329,9 +363,18 @@ class BiometricGUI:
         embeddings = np.array(embeddings)
         np.save(output_path, embeddings)
 
+    def toggle_biometric_auth(self):
+        """Toggle entre iniciar y cancelar autenticación biométrica"""
+        if self.is_authenticating:
+            # Si está autenticando, cancelar
+            self.stop_auth()
+        else:
+            # Si no está autenticando, iniciar
+            self.biometric_auth()
+
     def biometric_auth(self):
         """Función para autenticación biométrica"""
-        if self.is_capturing or self.is_authenticating:
+        if self.is_capturing:  # Don't start auth if capturing
             return
 
         # Verificar si existen modelos
@@ -343,20 +386,17 @@ class BiometricGUI:
             return
 
         self.is_authenticating = True
+        
+        # Cambiar el botón a modo cancelar
+        self.auth_btn.config(
+            text="2. Cancelar Autenticación",
+            bg="#f39c12"  # Orange color for cancel
+        )
+        
         self.cap = cv2.VideoCapture(0)
 
         # Mostrar el frame de video si estaba oculto
-        self.video_frame.pack(pady=20)
-
-        # Crear botón de cancelar
-        cancel_btn = tk.Button(
-            self.control_frame,
-            text="Cancelar Autenticación",
-            bg="#e74c3c",
-            fg="white",
-            command=self.stop_auth,
-        )
-        cancel_btn.pack()
+        self.video_frame.pack(pady=10)
 
         # Cargar modelos
         self.load_auth_models()
@@ -488,6 +528,15 @@ class BiometricGUI:
                             "color": (0, 255, 0),
                             "text": f"ACCESO: {best_match} ({best_score:.1f}%)"
                         }
+                        # Enable secure file access
+                        if not self.is_authenticated:
+                            self.is_authenticated = True
+                            self.authenticated_user = best_match
+                            self.last_auth_time = current_time
+                            self.root.after(0, self.enable_secure_access)
+                        else:
+                            # Update authentication time
+                            self.last_auth_time = current_time
                     else:
                         last_auth_result = {
                             "match": None,
@@ -495,6 +544,11 @@ class BiometricGUI:
                             "color": (0, 0, 255),
                             "text": "ACCESO DENEGADO"
                         }
+                        # Disable secure file access if previously authenticated
+                        if self.is_authenticated:
+                            self.is_authenticated = False
+                            self.authenticated_user = None
+                            self.root.after(0, self.disable_secure_access)
                     
                     last_auth_time = current_time
 
@@ -524,6 +578,12 @@ class BiometricGUI:
             if not hasattr(self, '_last_status') or self._last_status != current_status:
                 self._last_status = current_status
                 self.root.after(0, lambda s=current_status: self.instruction_label.config(text=s))
+
+            # Check for authentication timeout
+            if self.is_authenticated and (current_time - self.last_auth_time > self.auth_timeout):
+                self.is_authenticated = False
+                self.authenticated_user = None
+                self.root.after(0, self.disable_secure_access)
 
             # Only update display every 3 frames for smoother performance
             if frame_count % 3 == 0:
@@ -572,11 +632,103 @@ class BiometricGUI:
         # Ocultar el frame de video
         self.video_frame.pack_forget()
 
-        # Limpiar controles
+        # Restaurar el botón a su estado original
+        self.auth_btn.config(
+            text="2. Autenticación Biométrica",
+            bg="#e74c3c"  # Red color for start
+        )
+
+        # Limpiar controles (backup for any remaining controls)
         for widget in self.control_frame.winfo_children():
             widget.destroy()
 
         self.instruction_label.config(text="")
+
+    def enable_secure_access(self):
+        """Habilitar acceso al archivo seguro"""
+        self.secure_file_btn.config(
+            state="normal",
+            bg="#27ae60",  # Green color when enabled
+            text=f"3. Archivo Seguro (Autorizado: {self.authenticated_user})"
+        )
+        self.logout_btn.config(
+            state="normal",
+            bg="#e67e22"  # Orange color for logout
+        )
+        self.auth_status_label.config(
+            text=f"Estado: Autenticado como {self.authenticated_user}",
+            fg="#27ae60"
+        )
+
+    def disable_secure_access(self):
+        """Deshabilitar acceso al archivo seguro"""
+        self.secure_file_btn.config(
+            state="disabled",
+            bg="#95a5a6",  # Gray color when disabled
+            text="3. Abrir Archivo Seguro"
+        )
+        self.logout_btn.config(
+            state="disabled",
+            bg="#95a5a6"  # Gray color when disabled
+        )
+        self.auth_status_label.config(
+            text="Estado: No autenticado",
+            fg="#e74c3c"
+        )
+
+    def logout(self):
+        """Cerrar sesión manualmente"""
+        if self.is_authenticated:
+            result = messagebox.askyesno(
+                "Cerrar Sesión",
+                f"¿Está seguro de que desea cerrar la sesión de {self.authenticated_user}?"
+            )
+            if result:
+                self.is_authenticated = False
+                self.authenticated_user = None
+                self.disable_secure_access()
+                messagebox.showinfo("Sesión Cerrada", "Ha cerrado sesión exitosamente.")
+
+    def open_secure_file(self):
+        """Abrir archivo seguro solo si está autenticado"""
+        if not self.is_authenticated:
+            messagebox.showerror("Acceso Denegado", "Debe autenticarse primero para acceder al archivo seguro.")
+            return
+
+        try:
+            # Update access timestamp in the file
+            timestamp = time.strftime("%Y-%m-%d %H:%M:%S")
+            secure_file_path = "secure_file.txt"
+            
+            # Read current content
+            with open(secure_file_path, 'r', encoding='utf-8') as f:
+                content = f.read()
+            
+            # Update the timestamp in the content
+            content = content.replace(
+                "Fecha de último acceso: [Se actualiza automáticamente]",
+                f"Fecha de último acceso: {timestamp} - Usuario: {self.authenticated_user}"
+            )
+            
+            # Write back with timestamp
+            with open(secure_file_path, 'w', encoding='utf-8') as f:
+                f.write(content)
+
+            # Open the file with the default text editor
+            if platform.system() == "Windows":
+                os.startfile(secure_file_path)
+            elif platform.system() == "Darwin":  # macOS
+                subprocess.run(["open", secure_file_path])
+            else:  # Linux and other Unix-like systems
+                subprocess.run(["xdg-open", secure_file_path])
+
+            messagebox.showinfo(
+                "Acceso Concedido", 
+                f"Archivo seguro abierto exitosamente.\nUsuario autenticado: {self.authenticated_user}\nFecha de acceso: {timestamp}"
+            )
+
+        except Exception as e:
+            messagebox.showerror("Error", f"Error al abrir el archivo seguro: {str(e)}")
 
 
 if __name__ == "__main__":
